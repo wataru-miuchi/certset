@@ -44,7 +44,7 @@
   (doto (Event.)
     (.setSummary summary)
     (.setDescription description)
-    (.setAttendees [(doto (EventAttendee.) (.setEmail (get-in (get-config) [:CALENDAR :ID])) (.setResponseStatus "accepted"))])
+    (.setAttendees [(doto (EventAttendee.) (.setEmail (get-in (get-config) [:AUTH :CALENDAR_ID])) (.setResponseStatus "accepted"))])
     (.setStart (doto (EventDateTime.) (.setDateTime expire)))
     (.setEnd (doto (EventDateTime.) (.setDateTime expire)))
     ))
@@ -82,7 +82,7 @@
           (keep
             #(if (< (.getValue dateTime) (.getValue (get-in % ["start" "dateTime"])))
                (-> service .events (.get "primary" (get % "id")) .execute))
-            (-> service .events (.list (get-in config [:CALENDAR :ID])) (.setTimeMin dateTime) .execute (get "items")))]
+            (-> service .events (.list (get-in config [:AUTH :CALENDAR_ID])) (.setTimeMin dateTime) .execute (get "items")))]
       (doseq [cert (:CERT config)]
         (let [record (first (certmon/get-cert (:DOMAIN cert) 443))
               event (upsert-event service events record)]

@@ -17,7 +17,11 @@
 (def aside-elem (first (sel "aside")))
 (def article-elem (first (sel "article")))
 
-(def app-state (atom {:_show "SETTING" :_menu ["SETTING" "CALENDAR"]}))
+(def app-state (atom {:_show "CALENDAR" :_menu ["CALENDAR" "SETTING" "LOG"]}))
+
+(defn- set-cursor
+  ([] (set-cursor "default"))
+  ([cursor] (-> js/document .-body .-style .-cursor (set! cursor))))
 
 (defn- post-save [app]
   (.clear js/toastr)
@@ -26,6 +30,14 @@
      :handler #(.success js/toastr "Saved")
      :error-handler #(.error js/toastr "Error")
      :response-format :edn}))
+
+(defn- push-calendar []
+  (set-cursor "wait")
+  (POST "/edn/push"
+    {:handler #(.success js/toastr "Pushed")
+     :error-handler #(.error js/toastr "Error")
+     :response-format :edn
+     :finally set-cursor}))
 
 (defn- add-collection [app owner state refs]
   (let [add
@@ -100,13 +112,21 @@
                     (cond
                       (map? v)
                       (apply dom/div #js {:className "body"}
-                        (mapcat
-                          #(vector
-                             (dom/h3 #js {:className "title"} (name (key %)))
-                             (dom/input #js {:type "text" :value (val %) :className (handle-error (val %))
-                                             :onChange (fn [e] (put! (:change state) {:obj @app :col-key [k (key %)] :value (.. e -target -value)}))})
-                             )
-                          v)
+                        (dom/a #js {:href "#" :className "edit" :onClick (fn [e] (om/set-state! owner :edit true) (.preventDefault e))} "edit")
+                        (if (:edit state)
+                          (mapcat
+                            #(vector
+                               (dom/h3 #js {:className "title"} (name (key %)))
+                               (dom/input #js {:type "text" :value (val %) :className (handle-error (val %))
+                                               :onChange (fn [e] (put! (:change state) {:obj @app :col-key [k (key %)] :value (.. e -target -value)}))})
+                               )
+                            v)
+                          (mapcat
+                            #(vector
+                               (dom/h3 #js {:className "title"} (name (key %)))
+                               (dom/div #js {:className "text-body"} (val %)))
+                            v)
+                          )
                         )
                       (coll? v)
                       (let [ks (-> v first keys)]
@@ -128,40 +148,43 @@
                       ])
                  (remove #(re-find #"^_" (-> % key name)) app)))
           (dom/button #js {:className "save" :disabled (:error state) :onClick #(post-save @app)} "Save")
+          (dom/button #js {:className "push" :disabled (:error state) :onClick #(push-calendar)} "Push")
           )))))
 
-(defn- set-cursor
-  ([] (set-cursor "default"))
-  ([cursor] (-> js/document .-body .-style .-cursor (set! cursor))))
+(defn- iframe-html [id]
+  (str "<iframe src='https://www.google.com/calendar/embed?showTitle=0&amp;showPrint=0&amp;showCalendars=0&amp;mode=AGENDA&amp;height=500&amp;wkst=1&amp;bgcolor=%23FFFFFF&amp;src=" id "&amp;color=%23B1440E&amp;ctz=Asia%2FTokyo' style=' border-width:0 ' width='100%' height='500' frameborder='0' scrolling='no'></iframe>"))
 
-(defn- push-calendar [owner]
-  (set-cursor "wait")
-  (POST "/edn/push"
-    {:handler #(.success js/toastr "Pushed")
-     :error-handler #(.error js/toastr "Error")
-     :response-format :edn
-     :finally set-cursor}))
-
-(defn- calendar-edit [app owner]
+(defn- calendar-view [app owner]
   (reify
     om/IRenderState
     (render-state [this state]
       (dom/div #js  {:className (if (not= (:_show app) "CALENDAR") "hide")}
       (dom/h2 #js {:className "title"} "Google Calendar")
-      (dom/div #js {:className "body"}
-        (let [url (str "https://www.google.com/calendar/embed?src=" (get-in app [:CALENDAR :ID]) "&ctz=Asia/Tokyo")]
-          (dom/a #js {:href url :target "_blank"} url)))
-      (dom/button #js {:className "body save push" :onClick #(push-calendar owner)} "Push")
-      (dom/h2 #js {:className "title"} "Push log")
-      (dom/div #js {:className "body log"} (dom/textarea #js {:value (:log state)}))
+        (dom/div #js {:className "body"}
+          (dom/div (clj->js {:dangerouslySetInnerHTML {:__html (iframe-html (get-in app [:AUTH :CALENDAR_ID]))}}))
+          (let [url (str "https://www.google.com/calendar/embed?src=" (get-in app [:AUTH :CALENDAR_ID]) "&ctz=Asia/Tokyo&mode=AGENDA")]
+            (dom/a #js {:href url :target "_blank"} url)))
+        (dom/button #js {:className "body push" :onClick #(push-calendar)} "Push")
       ))
+    )
+  )
+
+(defn- log-view [app owner]
+  (reify
+    om/IRenderState
+    (render-state [this state]
+      (dom/div #js  {:className (if (not= (:_show app) "LOG") "hide")}
+        (dom/h2 #js {:className "title"} "Push log")
+        (dom/div #js {:className "body log"} (dom/textarea #js {:value (:log state)}))
+        (dom/button #js {:className "body push" :onClick #(push-calendar)} "Push")
+        ))
     om/IDidMount
     (did-mount [this]
       ((fn get-log []
-        (GET "/edn/log"
-          {:handler (fn [response] (om/set-state! owner :log (:body response)))
-           :response-format :edn
-           :finally #(.setTimeout js/window get-log 5000)})))
+         (GET "/edn/log"
+           {:handler (fn [response] (om/set-state! owner :log (:body response)))
+            :response-format :edn
+            :finally #(.setTimeout js/window get-log 5000)})))
       )
     om/IDidUpdate
     (did-update [this prev-props prev-state]
@@ -190,7 +213,8 @@
   (om/component
     (dom/div nil
       (om/build config-edit app)
-      (om/build calendar-edit app)
+      (om/build calendar-view app)
+      (om/build log-view app)
       )))
 
 (defn init []

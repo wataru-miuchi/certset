@@ -51,6 +51,12 @@ section {
       margin: 15px 0 20px; }
     section article .body {
       margin: 20px; }
+      section article .body a.edit {
+        position: absolute;
+        margin-top: -40px;
+        margin-left: 80px; }
+    section article .text-body {
+      padding: 12px 0; }
     section article a {
       color: #428bca; }
       section article a:hover {
@@ -112,6 +118,13 @@ button {
       border-color: rgba(30, 144, 255, 0.56);
       background-color: rgba(30, 144, 255, 0.55);
       cursor: no-drop; }
+  button.push {
+    border-color: yellowgreen;
+    color: #fff;
+    background-color: yellowgreen; }
+    button.push:hover {
+      border-color: #a8df36;
+      background-color: #a8df36; }
   button:focus {
     outline: none; }
 
