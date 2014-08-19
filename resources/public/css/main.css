@@ -125,6 +125,8 @@ button {
     button.push:hover {
       border-color: #a8df36;
       background-color: #a8df36; }
+    button.push:disabled {
+      cursor: wait; }
   button:focus {
     outline: none; }
 

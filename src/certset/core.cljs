@@ -31,13 +31,19 @@
      :error-handler #(.error js/toastr "Error")
      :response-format :edn}))
 
-(defn- push-calendar []
+(defn- push-calendar [app]
   (set-cursor "wait")
+  (om/update! app :_push true)
   (POST "/edn/push"
     {:handler #(.success js/toastr "Pushed")
      :error-handler #(.error js/toastr "Error")
      :response-format :edn
-     :finally set-cursor}))
+     :finally (fn [] (om/update! app :_push false) (set-cursor))}))
+
+(defn- push-btn [app owner]
+  (om/component
+    (dom/button #js {:className "push" :disabled (:_push app) :onClick #(push-calendar app)} "Push"))
+  )
 
 (defn- add-collection [app owner state refs]
   (let [add
@@ -148,7 +154,7 @@
                       ])
                  (remove #(re-find #"^_" (-> % key name)) app)))
           (dom/button #js {:className "save" :disabled (:error state) :onClick #(post-save @app)} "Save")
-          (dom/button #js {:className "push" :disabled (:error state) :onClick #(push-calendar)} "Push")
+          (om/build push-btn app)
           )))))
 
 (defn- iframe-html [id]
@@ -164,7 +170,7 @@
           (dom/div (clj->js {:dangerouslySetInnerHTML {:__html (iframe-html (get-in app [:AUTH :CALENDAR_ID]))}}))
           (let [url (str "https://www.google.com/calendar/embed?src=" (get-in app [:AUTH :CALENDAR_ID]) "&ctz=Asia/Tokyo&mode=AGENDA")]
             (dom/a #js {:href url :target "_blank"} url)))
-        (dom/button #js {:className "body push" :onClick #(push-calendar)} "Push")
+        (om/build push-btn app)
       ))
     )
   )
@@ -176,7 +182,7 @@
       (dom/div #js  {:className (if (not= (:_show app) "LOG") "hide")}
         (dom/h2 #js {:className "title"} "Push log")
         (dom/div #js {:className "body log"} (dom/textarea #js {:value (:log state)}))
-        (dom/button #js {:className "body push" :onClick #(push-calendar)} "Push")
+        (om/build push-btn app)
         ))
     om/IDidMount
     (did-mount [this]

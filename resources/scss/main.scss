@@ -164,6 +164,9 @@ button {
       border-color: #a8df36;
       background-color: #a8df36;
     }
+    &:disabled {
+      cursor: wait;
+    }
   }
   &:focus {
     outline: none;
